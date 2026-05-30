@@ -1,0 +1,382 @@
+/* DISCLAIMER: Part of this code was ai-generated
+in all fairness though the worst thing that could happen with ai-generated css is a ugly UI rofl*/
+
+/* ── GIF Categories ──────────────────────────────────────────────────────── */
+
+/* ── "+" star button on GIF items ───────────────────────────────────────── */
+/* The btn-wrap is a child of _.D (the GIF item container). _.D always
+   has a data-focused attribute (set to "true" or "false" based on focus).
+   We use [data-focused] as our anchor — it matches every GIF item. */
+
+.vc-gifcat-btn-wrap {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    z-index: 10;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s;
+}
+
+.vc-gifcat-msg-overlay .vc-gifcat-btn-wrap {
+    left: auto;
+    right: 4px;
+    opacity: 1;
+    pointer-events: all;
+}
+
+div:has(> .vc-gifcat-btn-wrap) {
+    position: relative;
+}
+
+[data-focused]:hover > .vc-gifcat-btn-wrap {
+    opacity: 1;
+    pointer-events: all;
+}
+
+
+.vc-gifcat-star-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    transition: background 0.1s;
+}
+.vc-gifcat-star-btn:hover {
+    background: rgba(0, 0, 0, 0.7);
+}
+
+/* ── Category dropdown (appears on button hover) ────────────────────────── */
+
+.vc-gifcat-cat-dropdown {
+    position: absolute;
+    top: 0;
+    left: calc(100% + 2px);
+    z-index: 100;
+    background: var(--background-floating, #18191c);
+    border: 1px solid var(--background-modifier-accent, #2e2f35);
+    border-radius: 8px;
+    padding: 4px;
+    min-width: 140px;
+    max-width: 220px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    animation: vc-gifcat-in 0.1s ease;
+}
+
+@keyframes vc-gifcat-in {
+    from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+
+.vc-gifcat-cat-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    border-radius: 4px;
+    border: none;
+    background: transparent;
+    color: var(--text-normal, #dbdee1);
+    font-size: 12px;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    transition: background 0.1s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.vc-gifcat-cat-btn:hover {
+    background: var(--background-modifier-hover, #2e2f35);
+}
+.vc-gifcat-cat-btn.active {
+    background: rgba(88, 101, 242, 0.15);
+    color: var(--brand-experiment-400, #858afa);
+}
+
+.vc-gifcat-cat-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.vc-gifcat-cat-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+.vc-gifcat-cat-row .vc-gifcat-cat-btn {
+    flex: 1;
+    min-width: 0;
+}
+.vc-gifcat-cat-del-btn {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-muted, #949ba4);
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.1s, background 0.1s, color 0.1s;
+}
+.vc-gifcat-cat-row:hover .vc-gifcat-cat-del-btn {
+    opacity: 1;
+}
+.vc-gifcat-cat-del-btn:hover {
+    background: var(--background-modifier-hover, #2e2f35);
+    color: var(--status-danger, #da373c);
+}
+
+/* ── New Category popup ──────────────────────────────────────────────────── */
+
+.vc-gifcat-new-popup {
+    position: absolute;
+    top: 28px;
+    left: 0;
+    z-index: 100;
+    background: var(--background-floating, #18191c);
+    border: 1px solid var(--background-modifier-accent, #2e2f35);
+    border-radius: 8px;
+    padding: 8px;
+    min-width: 180px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    animation: vc-gifcat-in 0.12s ease;
+}
+
+.vc-gifcat-new-header {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted, #949ba4);
+    margin-bottom: 6px;
+}
+
+.vc-gifcat-new-input {
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--input-background, #1e1f22);
+    border: 1px solid var(--background-modifier-accent, #2e2f35);
+    border-radius: 4px;
+    color: var(--text-normal, #dbdee1);
+    font-size: 13px;
+    padding: 5px 8px;
+    outline: none;
+}
+.vc-gifcat-new-input:focus {
+    border-color: var(--brand-experiment, #5865f2);
+}
+
+.vc-gifcat-color-row {
+    display: flex;
+    gap: 4px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+}
+
+.vc-gifcat-color-swatch {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    padding: 0;
+    transition: transform 0.1s, border-color 0.1s;
+}
+.vc-gifcat-color-swatch:hover {
+    transform: scale(1.2);
+}
+.vc-gifcat-color-swatch.active {
+    border-color: var(--text-normal, #dbdee1);
+}
+
+.vc-gifcat-color-none {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid var(--background-modifier-accent, #2e2f35);
+    background: transparent;
+    color: var(--text-muted, #949ba4);
+    font-size: 11px;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.vc-gifcat-color-none:hover {
+    border-color: var(--text-muted, #949ba4);
+}
+
+.vc-gifcat-new-actions {
+    display: flex;
+    gap: 4px;
+    margin-top: 8px;
+    justify-content: flex-end;
+}
+
+.vc-gifcat-new-cancel {
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: none;
+    background: var(--background-modifier-accent, #2e2f35);
+    color: var(--text-muted, #949ba4);
+    font-size: 12px;
+    cursor: pointer;
+}
+.vc-gifcat-new-cancel:hover {
+    background: var(--background-modifier-hover, #2e2f35);
+}
+
+.vc-gifcat-new-confirm {
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: none;
+    background: var(--brand-experiment, #5865f2);
+    color: #fff;
+    font-size: 12px;
+    cursor: pointer;
+}
+.vc-gifcat-new-confirm:hover {
+    background: var(--brand-experiment-560, #4752c4);
+}
+
+/* ── Message GIF overlay ─────────────────────────────────────────────────── */
+/* Portal container positioned over the message image. */
+
+.vc-gifcat-msg-overlay {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    pointer-events: all;
+    z-index: 10001;
+}
+
+/* ── Scroll hide ─────────────────────────────────────────────────────────── */
+/* During scroll, hide our controls with !important to override hover rules */
+body.vc-gifcat-scrolling .vc-gifcat-btn-wrap,
+body.vc-gifcat-scrolling .vc-gifcat-cat-dropdown,
+body.vc-gifcat-scrolling .vc-gifcat-msg-overlay {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+/* ── Category bar (Favourites tab) ───────────────────────────────────────── */
+
+.vc-gifcat-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 4px 4px;
+    flex-shrink: 0;
+}
+
+.vc-gifcat-bar-scroll {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.vc-gifcat-bar-scroll::before,
+.vc-gifcat-bar-scroll::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 28px;
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+.vc-gifcat-bar-scroll::before {
+    left: 0;
+    background: linear-gradient(to right, var(--background-secondary, #2b2d31), transparent);
+}
+.vc-gifcat-bar-scroll::after {
+    right: 0;
+    background: linear-gradient(to left, var(--background-secondary, #2b2d31), transparent);
+}
+.vc-gifcat-bar-wrap.fl .vc-gifcat-bar-scroll::before { opacity: 1; }
+.vc-gifcat-bar-wrap.fr .vc-gifcat-bar-scroll::after  { opacity: 1; }
+
+.vc-gifcat-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    overscroll-behavior-x: none;
+    padding: 2px 8px;
+    cursor: grab;
+    user-select: none;
+}
+.vc-gifcat-bar:active {
+    cursor: grabbing;
+}
+.vc-gifcat-bar::-webkit-scrollbar { display: none; }
+
+.vc-gifcat-bar-arrow {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 50%;
+    background: var(--background-secondary-alt, #2b2d31);
+    color: var(--text-normal, #dbdee1);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.1s;
+}
+.vc-gifcat-bar-arrow:hover {
+    background: var(--background-modifier-hover, #36373d);
+}
+
+.vc-gifcat-pill {
+    flex-shrink: 0;
+    padding: 3px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--background-modifier-accent, #2e2f35);
+    background: transparent;
+    color: var(--text-muted, #949ba4);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.vc-gifcat-pill:hover {
+    background: var(--background-modifier-hover, #2e2f35);
+    color: var(--text-normal, #dbdee1);
+}
+.vc-gifcat-pill.active {
+    background: var(--brand-experiment, #5865f2);
+    border-color: var(--brand-experiment, #5865f2);
+    color: #fff;
+}
+.vc-gifcat-pill.active:hover {
+    background: var(--brand-experiment-560, #4752c4);
+    border-color: var(--brand-experiment-560, #4752c4);
+}
