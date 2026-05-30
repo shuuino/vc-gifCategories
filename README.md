@@ -4,8 +4,11 @@
 # gifCategories
 
 A Vencord UserPlugin that brings custom category management to Discord's GIF picker. Organise your favourite GIFs into colour-coded groups for easier filtering.
+<br>
 <img width="706" height="343" alt="image" src="https://github.com/user-attachments/assets/e284bdeb-be74-4038-a692-b955334513e3" />
+<br>
 <img width="379" height="342" alt="image" src="https://github.com/user-attachments/assets/e8786747-93bb-4cf5-8dda-987f54ddc6e6" />
+<br>
 <img width="547" height="865" alt="image" src="https://github.com/user-attachments/assets/d24a4004-0ad1-4cc5-98fb-13a899f63514" />
 
 ## Installation
