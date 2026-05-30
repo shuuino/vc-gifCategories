@@ -9,9 +9,7 @@ A Vencord UserPlugin that brings custom category management to Discord's GIF pic
 <img width="547" height="865" alt="image" src="https://github.com/user-attachments/assets/d24a4004-0ad1-4cc5-98fb-13a899f63514" />
 
 ## Installation
-
-1. Install [Vencord from source](https://docs.vencord.dev/installing/).
-2. Follow the [Installing custom plugins](https://docs.vencord.dev/installing/custom-plugins/) guide. When "adding your plugin", place these files in a folder within the `/userplugins/` folder.
+An installation guide can be found [here](https://discord.com/channels/1015060230222131221/1257038407503446176/1257038407503446176).
 
 ## Features
 ### Category management
