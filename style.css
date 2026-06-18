@@ -31,7 +31,7 @@ in all fairness though the worst thing that could happen with ai-generated css i
     to   { opacity: 1; transform: translateY(0); }
 }
 
-div:has(> .vc-gifcat-btn-wrap) {
+div:has(> .vc-gifcat-btn-wrap):not(.vc-gifcat-msg-overlay) {
     position: relative;
 }
 
@@ -149,6 +149,31 @@ div:has(> .vc-gifcat-btn-wrap) {
     color: var(--status-danger, #da373c);
 }
 
+.vc-gifcat-cat-edit-btn {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-muted, #949ba4);
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.1s, background 0.1s, color 0.1s;
+}
+.vc-gifcat-cat-row:hover .vc-gifcat-cat-edit-btn {
+    opacity: 1;
+}
+.vc-gifcat-cat-edit-btn:hover {
+    background: var(--background-modifier-hover, #2e2f35);
+    color: var(--text-normal, #dbdee1);
+}
+
 /* ── New Category popup ──────────────────────────────────────────────────── */
 
 .vc-gifcat-new-popup {
@@ -163,6 +188,14 @@ div:has(> .vc-gifcat-btn-wrap) {
     min-width: 180px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
     animation: vc-gifcat-in 0.12s ease;
+}
+.vc-gifcat-cat-dropdown .vc-gifcat-new-popup {
+    position: static;
+    box-shadow: none;
+    border: none;
+    padding: 0;
+    min-width: 0;
+    animation: none;
 }
 
 .vc-gifcat-new-header {
@@ -212,6 +245,15 @@ div:has(> .vc-gifcat-btn-wrap) {
     border-color: var(--text-normal, #dbdee1);
 }
 
+.vc-gifcat-color-custom {
+    background: conic-gradient(from 90deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
+    border: none;
+    background-clip: padding-box;
+}
+.vc-gifcat-color-custom.active {
+    outline: 2px solid var(--text-normal, #dbdee1);
+    outline-offset: 1px;
+}
 .vc-gifcat-color-none {
     width: 20px;
     height: 20px;
@@ -228,6 +270,46 @@ div:has(> .vc-gifcat-btn-wrap) {
 }
 .vc-gifcat-color-none:hover {
     border-color: var(--text-muted, #949ba4);
+}
+
+.vc-gifcat-custom-color-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+}
+.vc-gifcat-color-wheel {
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--background-modifier-accent, #2e2f35);
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 0;
+    background-color: var(--input-background, #1e1f22);
+    -webkit-appearance: none;
+    appearance: none;
+}
+.vc-gifcat-color-wheel::-webkit-color-swatch-wrapper {
+    padding: 3px;
+}
+.vc-gifcat-color-wheel::-webkit-color-swatch {
+    border: none;
+    border-radius: 2px;
+}
+.vc-gifcat-hex-input {
+    width: 80px;
+    box-sizing: border-box;
+    background: var(--input-background, #1e1f22);
+    border: 1px solid var(--background-modifier-accent, #2e2f35);
+    border-radius: 4px;
+    color: var(--text-normal, #dbdee1);
+    font-size: 12px;
+    padding: 4px 6px;
+    outline: none;
+    font-family: monospace;
+}
+.vc-gifcat-hex-input:focus {
+    border-color: var(--brand-experiment, #5865f2);
 }
 
 .vc-gifcat-new-actions {
@@ -275,9 +357,10 @@ div:has(> .vc-gifcat-btn-wrap) {
 }
 
 /* ── Scroll hide ─────────────────────────────────────────────────────────── */
-/* During scroll, hide our controls with !important to override hover rules */
-body.vc-gifcat-scrolling .vc-gifcat-cat-dropdown,
-body.vc-gifcat-scrolling .vc-gifcat-msg-overlay {
+/* Body class toggled by wheel handler — hides overlay + dropdown when the
+   tracked GIF element moves, but skips if position hasn't changed. */
+body.vc-gifcat-scrolling .vc-gifcat-msg-overlay,
+body.vc-gifcat-scrolling .vc-gifcat-cat-dropdown {
     opacity: 0 !important;
     pointer-events: none !important;
 }

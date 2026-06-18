@@ -35,6 +35,8 @@ const PRESET_COLORS = [
     "#FFFFFF", // white
 ];
 
+const CUSTOM = "___custom___";
+
 interface Gif {
     format: number;
     src: string;
@@ -156,6 +158,22 @@ async function deleteCategory(name: string) {
     await saveCats(cats.filter(c => c.name !== name));
     notifyCatsChanged();
 }
+async function renameCategory(oldName: string, newName: string) {
+    const cats = await getCats();
+    const idx = cats.findIndex(c => c.name === oldName);
+    if (idx === -1) return;
+    if (cats.some(c => c.name === newName && c.name !== oldName)) return;
+    cats[idx].name = newName;
+    const map = await getGifMap();
+    for (const url of Object.keys(map)) {
+        if (map[url].includes(oldName)) {
+            map[url] = map[url].map(c => c === oldName ? newName : c);
+        }
+    }
+    await saveGifMap(map);
+    await saveCats(cats);
+    notifyCatsChanged();
+}
 async function updateCategoryColor(name: string, color?: string) {
     const cats = await getCats();
     const idx = cats.findIndex(c => c.name === name);
@@ -202,6 +220,26 @@ const settings = definePluginSettings({
         type: OptionType.BOOLEAN,
         description: "Show the category list by default when hovering a GIF in a message (on: list appears on hover; off: click the + button to open the list)",
         default: true,
+    },
+    twoBarCategories: {
+        type: OptionType.BOOLEAN,
+        description: "Show colored and non-colored categories in two separate bars (colored on top, non-colored below)",
+        default: false,
+    },
+    sortColoredFirst: {
+        type: OptionType.BOOLEAN,
+        description: "Sort colored categories before non-colored in the category bar (when two-bar mode is disabled)",
+        default: false,
+    },
+    hideEditBtn: {
+        type: OptionType.BOOLEAN,
+        description: "Hide the edit button (✎) in the category dropdown",
+        default: false,
+    },
+    hideDeleteBtn: {
+        type: OptionType.BOOLEAN,
+        description: "Hide the delete button (×) in the category dropdown",
+        default: false,
     },
     clearData: {
         type: OptionType.BOOLEAN,
@@ -275,6 +313,43 @@ const settings = definePluginSettings({
 function CategoryDropdown({ gifUrl }: { gifUrl: string }) {
     const [cats, setCats] = useState<Category[]>([]);
     const [gifCats, setGifCats] = useState<string[]>([]);
+    const [editing, setEditing] = useState<Category | null>(null);
+    // Scroll-hide via body class is handled in the wheel handler below.
+    // Position tracking per-component was removed because it could lose
+    // the element ref on re-render, causing the dropdown to never re-appear.
+    /*
+    const [hidden, setHidden] = useState(false);
+    const ddRef = useRef<HTMLDivElement>(null);
+    const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+        const el = ddRef.current;
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        let lastPos = `${rect.top},${rect.left}`;
+        const handler = () => {
+            if (!ddRef.current) return;
+            const r = ddRef.current.getBoundingClientRect();
+            const pos = `${r.top},${r.left}`;
+            if (pos !== lastPos) {
+                lastPos = pos;
+                setHidden(true);
+                if (hideTimer.current) clearTimeout(hideTimer.current);
+                hideTimer.current = setTimeout(() => {
+                    setHidden(false);
+                    hideTimer.current = null;
+                }, 400);
+            }
+        };
+        document.addEventListener("scroll", handler, { passive: true, capture: true });
+        window.addEventListener("resize", handler, { passive: true });
+        return () => {
+            document.removeEventListener("scroll", handler, { capture: true });
+            window.removeEventListener("resize", handler);
+            if (hideTimer.current) clearTimeout(hideTimer.current);
+        };
+    }, []);
+    */
 
     const reload = useCallback(async () => {
         setCats(await getCats());
@@ -303,6 +378,15 @@ function CategoryDropdown({ gifUrl }: { gifUrl: string }) {
 
     if (cats.length === 0) return null;
 
+    if (editing) {
+        return (
+            <div className="vc-gifcat-cat-dropdown">
+                <CategoryFormPopup initialName={editing.name} initialColor={editing.color}
+                    onClose={() => { setEditing(null); reload(); }} />
+            </div>
+        );
+    }
+
     return (
         <div className="vc-gifcat-cat-dropdown">
             {cats.map(cat => (
@@ -312,52 +396,95 @@ function CategoryDropdown({ gifUrl }: { gifUrl: string }) {
                         {cat.color && <span className="vc-gifcat-cat-dot" style={{ background: cat.color }} />}
                         {cat.name}
                     </button>
-                    <button className="vc-gifcat-cat-del-btn" title="Delete category"
-                        onClick={e => { e.stopPropagation(); delCat(cat.name); }}>×</button>
+                    {!settings.store.hideEditBtn && (
+                        <button className="vc-gifcat-cat-edit-btn" title="Edit category"
+                            onClick={e => { e.stopPropagation(); setEditing(cat); }}>✎</button>
+                    )}
+                    {!settings.store.hideDeleteBtn && (
+                        <button className="vc-gifcat-cat-del-btn" title="Delete category"
+                            onClick={e => { e.stopPropagation(); delCat(cat.name); }}>×</button>
+                    )}
                 </div>
             ))}
         </div>
     );
 }
 
-// ─── New Category Popup ───────────────────────────────────────────────────────
-// Appears when clicking the "+" button. Provides name input and color picker.
+// ─── Category Form Popup ─────────────────────────────────────────────────────
+// Supports both creating a new category and editing an existing one.
+// Includes preset color swatches and a custom color picker (type="color" + hex input).
 
-function NewCategoryPopup({ gifUrl, onClose }: { gifUrl: string; onClose: () => void }) {
-    const [name, setName] = useState("");
-    const [color, setColor] = useState<string | undefined>(undefined);
+function CategoryFormPopup({ gifUrl, initialName, initialColor, onClose }: { gifUrl?: string; initialName?: string; initialColor?: string; onClose: () => void }) {
+    const isEdit = !!initialName;
+    const [name, setName] = useState(initialName ?? "");
+    const [color, setColor] = useState<string | undefined>(initialColor);
+    const [customHex, setCustomHex] = useState(initialColor ?? "#5865F2");
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => { inputRef.current?.focus(); }, []);
+    useEffect(() => {
+        const el = inputRef.current;
+        if (!el) return;
+        const handler = (e: KeyboardEvent) => { if (e.key === " ") e.stopPropagation(); };
+        el.addEventListener("keydown", handler, true);
+        el.addEventListener("keypress", handler, true);
+        el.addEventListener("keyup", handler, true);
+        return () => {
+            el.removeEventListener("keydown", handler, true);
+            el.removeEventListener("keypress", handler, true);
+            el.removeEventListener("keyup", handler, true);
+        };
+    }, []);
 
     async function submit() {
         const trimmed = name.trim();
         if (!trimmed) return;
-        await createCategory(trimmed, color);
-        if (gifUrl) await addGifToCategory(gifUrl, trimmed);
+        if (isEdit) {
+            if (trimmed !== initialName) await renameCategory(initialName!, trimmed);
+            if (color !== initialColor) await updateCategoryColor(trimmed, color);
+        } else {
+            await createCategory(trimmed, color);
+            if (gifUrl) await addGifToCategory(gifUrl, trimmed);
+        }
         onClose();
     }
 
+    const showCustom = color === CUSTOM;
+    const resolvedColor = showCustom ? customHex : color;
+
     return (
         <div className="vc-gifcat-new-popup" onClick={e => e.stopPropagation()}>
-            <div className="vc-gifcat-new-header">New Category</div>
+            <div className="vc-gifcat-new-header">{isEdit ? "Edit Category" : "New Category"}</div>
             <input ref={inputRef} className="vc-gifcat-new-input"
                 placeholder="Category name" value={name} maxLength={32}
-                onChange={e => setName(e.currentTarget.value.replace(/\s/g, ''))}
-                onKeyDown={e => { e.stopPropagation(); if (e.key === "Enter") submit(); if (e.key === "Escape") onClose(); }} />
+                onChange={e => setName(e.currentTarget.value)}
+                onKeyDown={e => { if (e.key === " ") e.preventDefault(); e.stopPropagation(); if (e.key === "Enter") submit(); if (e.key === "Escape") onClose(); }}
+                onKeyUp={e => { if (e.key === " ") e.stopPropagation(); }} />
             <div className="vc-gifcat-color-row">
+                <button key={CUSTOM}
+                    className={`vc-gifcat-color-swatch vc-gifcat-color-custom${showCustom ? " active" : ""}`}
+                    title="Custom color"
+                    onClick={() => setColor(showCustom ? undefined : CUSTOM)} />
                 {PRESET_COLORS.map(c => (
                     <button key={c}
-                        className={`vc-gifcat-color-swatch${color === c ? " active" : ""}`}
+                        className={`vc-gifcat-color-swatch${!showCustom && color === c ? " active" : ""}`}
                         style={{ background: c }}
                         onClick={() => setColor(color === c ? undefined : c)} />
                 ))}
                 <button className="vc-gifcat-color-none" title="No color"
                     onClick={() => setColor(undefined)}>✕</button>
             </div>
+            {showCustom && (
+                <div className="vc-gifcat-custom-color-row">
+                    <input type="color" className="vc-gifcat-color-wheel" value={customHex}
+                        onChange={e => { setCustomHex(e.currentTarget.value); setColor(CUSTOM); }} />
+                    <input className="vc-gifcat-hex-input" placeholder="#hex" value={customHex} maxLength={7}
+                        onChange={e => { const v = e.currentTarget.value; setCustomHex(v); if (/^#[0-9a-fA-F]{6}$/.test(v)) setColor(CUSTOM); }} />
+                </div>
+            )}
             <div className="vc-gifcat-new-actions">
                 <button className="vc-gifcat-new-cancel" onClick={onClose}>Cancel</button>
-                <button className="vc-gifcat-new-confirm" onClick={submit}>Create</button>
+                <button className="vc-gifcat-new-confirm" onClick={submit}>{isEdit ? "Save" : "Create"}</button>
             </div>
         </div>
     );
@@ -454,7 +581,7 @@ function CatButton({ item, gifUrl: _gifUrl, showOnHover = true }: CatButtonProps
                 onClick={handleClick}>+</button>
             {showDropdown && <CategoryDropdown gifUrl={gifUrl} />}
             {showNew && (
-                <NewCategoryPopup gifUrl={gifUrl}
+                <CategoryFormPopup gifUrl={gifUrl}
                     onClose={() => setShowNew(false)} />
             )}
         </div>
@@ -485,84 +612,119 @@ interface CategoryBarProps {
 function CategoryBar({ active, onSelect }: CategoryBarProps) {
     const [cats, setCats] = useState<Category[]>([]);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const scrollRef2 = useRef<HTMLDivElement>(null);
     const [showL, setShowL] = useState(false);
     const [showR, setShowR] = useState(false);
+    const [showL2, setShowL2] = useState(false);
+    const [showR2, setShowR2] = useState(false);
     const dragRef = useRef<{ startX: number; scrollLeft: number; down: boolean; }>({ startX: 0, scrollLeft: 0, down: false });
+    const { twoBarCategories, sortColoredFirst } = settings.store;
+
+    function sortCats(list: Category[]) {
+        if (!twoBarCategories && sortColoredFirst) {
+            const colored = list.filter(c => c.color);
+            const plain = list.filter(c => !c.color);
+            return [...colored, ...plain];
+        }
+        return list;
+    }
 
     useEffect(() => {
-        getCats().then(setCats);
-        return onCatsChanged(() => getCats().then(setCats));
-    }, []);
+        getCats().then(c => setCats(sortCats(c)));
+        return onCatsChanged(() => getCats().then(c => setCats(sortCats(c))));
+    }, [twoBarCategories, sortColoredFirst]);
 
     function updateArrows() {
         const el = scrollRef.current;
-        if (!el) return;
-        setShowL(el.scrollLeft > 4);
-        setShowR(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+        if (el) { setShowL(el.scrollLeft > 4); setShowR(el.scrollLeft + el.clientWidth < el.scrollWidth - 4); }
+        const el2 = scrollRef2.current;
+        if (el2) { setShowL2(el2.scrollLeft > 4); setShowR2(el2.scrollLeft + el2.clientWidth < el2.scrollWidth - 4); }
     }
 
     useEffect(() => {
         updateArrows();
         const el = scrollRef.current;
-        if (!el) return;
-        el.addEventListener("scroll", updateArrows, { passive: true });
-        return () => el.removeEventListener("scroll", updateArrows);
+        const el2 = scrollRef2.current;
+        if (el) el.addEventListener("scroll", updateArrows, { passive: true });
+        if (el2) el2.addEventListener("scroll", updateArrows, { passive: true });
+        return () => {
+            if (el) el.removeEventListener("scroll", updateArrows);
+            if (el2) el2.removeEventListener("scroll", updateArrows);
+        };
     }, [cats]);
 
-    function scrollBy(amount: number) {
-        scrollRef.current?.scrollBy({ left: amount, behavior: "smooth" });
+    function scrollBy(ref: React.RefObject<HTMLDivElement | null>, amount: number) {
+        ref.current?.scrollBy({ left: amount, behavior: "smooth" });
     }
 
     function onMouseDown(e: React.MouseEvent) {
+        const el = e.currentTarget as HTMLDivElement;
         dragRef.current.down = true;
-        dragRef.current.startX = e.pageX - scrollRef.current!.offsetLeft;
-        dragRef.current.scrollLeft = scrollRef.current!.scrollLeft;
+        dragRef.current.startX = e.pageX - el.offsetLeft;
+        dragRef.current.scrollLeft = el.scrollLeft;
     }
 
     function onMouseMove(e: React.MouseEvent) {
         if (!dragRef.current.down) return;
         e.preventDefault();
-        const x = e.pageX - scrollRef.current!.offsetLeft;
+        const el = e.currentTarget as HTMLDivElement;
+        const x = e.pageX - el.offsetLeft;
         const walk = (x - dragRef.current.startX) * 1.5;
-        scrollRef.current!.scrollLeft = dragRef.current.scrollLeft - walk;
+        el.scrollLeft = dragRef.current.scrollLeft - walk;
     }
 
     function onMouseUp() {
         dragRef.current.down = false;
     }
 
+    const colored = cats.filter(c => c.color);
+    const plain = cats.filter(c => !c.color);
+
+    function renderBar(catList: Category[], ref: React.RefObject<HTMLDivElement | null>, showL: boolean, showR: boolean) {
+        return (
+            <div className={`vc-gifcat-bar-wrap${showL ? " fl" : ""}${showR ? " fr" : ""}`}>
+                {showL && (
+                    <button className="vc-gifcat-bar-arrow"
+                        onClick={() => scrollBy(ref, -160)}>‹</button>
+                )}
+                <div className="vc-gifcat-bar-scroll">
+                    <div className="vc-gifcat-bar" ref={ref}
+                        onMouseDown={onMouseDown}
+                        onMouseMove={onMouseMove}
+                        onMouseUp={onMouseUp}
+                        onMouseLeave={onMouseUp}>
+                        <button className={`vc-gifcat-pill${active === null ? " active" : ""}`}
+                            onClick={() => onSelect(null)}>All</button>
+                        {catList.map(cat => (
+                            <button key={cat.name}
+                                className={`vc-gifcat-pill${active === cat.name ? " active" : ""}`}
+                                style={cat.color ? { borderColor: cat.color, backgroundColor: cat.color + "22" } : {}}
+                                onClick={() => onSelect(cat.name)}>
+                                {cat.name}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                {showR && (
+                    <button className="vc-gifcat-bar-arrow"
+                        onClick={() => scrollBy(ref, 160)}>›</button>
+                )}
+            </div>
+        );
+    }
+
     if (cats.length === 0) return null;
 
-    return (
-        <div className={`vc-gifcat-bar-wrap${showL ? " fl" : ""}${showR ? " fr" : ""}`}>
-            {showL && (
-                <button className="vc-gifcat-bar-arrow"
-                    onClick={() => scrollBy(-160)}>‹</button>
-            )}
-            <div className="vc-gifcat-bar-scroll">
-                <div className="vc-gifcat-bar" ref={scrollRef}
-                    onMouseDown={onMouseDown}
-                    onMouseMove={onMouseMove}
-                    onMouseUp={onMouseUp}
-                    onMouseLeave={onMouseUp}>
-                    <button className={`vc-gifcat-pill${active === null ? " active" : ""}`}
-                        onClick={() => onSelect(null)}>All</button>
-                    {cats.map(cat => (
-                        <button key={cat.name}
-                            className={`vc-gifcat-pill${active === cat.name ? " active" : ""}`}
-                            style={cat.color ? { borderColor: cat.color, backgroundColor: cat.color + "22" } : {}}
-                            onClick={() => onSelect(cat.name)}>
-                            {cat.name}
-                        </button>
-                    ))}
-                </div>
-            </div>
-            {showR && (
-                <button className="vc-gifcat-bar-arrow"
-                    onClick={() => scrollBy(160)}>›</button>
-            )}
-        </div>
-    );
+    if (twoBarCategories && plain.length > 0 && colored.length > 0) {
+        return (
+            <>
+                {renderBar(colored, scrollRef, showL, showR)}
+                {renderBar(plain, scrollRef2, showL2, showR2)}
+            </>
+        );
+    }
+
+    return renderBar(cats, scrollRef, showL, showR);
 }
 
 // ─── Favourites content wrapper ───────────────────────────────────────────────
@@ -727,6 +889,9 @@ export default definePlugin({
     _currentGifEl: null as HTMLElement | null,
     _msgOverHandler: null as ((e: MouseEvent) => void) | null,
     _msgOutHandler: null as ((e: MouseEvent) => void) | null,
+    _msgPosUpdater: null as (() => void) | null,
+    _msgTrackedEl: null as HTMLElement | null,
+    _msgMoveTimer: null as ReturnType<typeof setTimeout> | null,
 
     isMsgGif(src: string, contentType?: string): boolean {
         if (contentType === "image/gif") return true;
@@ -766,6 +931,8 @@ export default definePlugin({
         const el = (e.target as Element)?.closest?.("[data-vc-gif]") as HTMLElement | null;
         if (!el) return;
         if (!el.closest('[class*="message"]') && !el.closest('[class*="embed"]')) return;
+        const wrapper = el.closest('[class*="imageWrapper"]');
+        if (wrapper && !wrapper.querySelector('[class*="gifFavoriteButton"]')) return;
         if (el === this._currentGifEl) {
             if (this._msgCloseTimer) { clearTimeout(this._msgCloseTimer); this._msgCloseTimer = null; }
             return;
@@ -790,11 +957,79 @@ export default definePlugin({
         this._msgScheduleHide();
     },
 
-    _showOverlay(el: HTMLElement, src: string) {
+    _updateOverlayPos(el: HTMLElement) {
         if (!this._msgElement) return;
         const rect = el.getBoundingClientRect();
-        this._msgElement.style.cssText =
-            `position:fixed;top:${rect.top}px;left:${rect.left}px;width:${rect.width}px;height:${rect.height}px;z-index:10000;pointer-events:none;`;
+        this._msgElement.style.position = "fixed";
+        this._msgElement.style.zIndex = "10000";
+        this._msgElement.style.pointerEvents = "none";
+        this._msgElement.style.top = `${rect.top}px`;
+        this._msgElement.style.left = `${rect.left}px`;
+        this._msgElement.style.width = `${rect.width}px`;
+        this._msgElement.style.height = `${rect.height}px`;
+    },
+
+    _startPosTracking(el: HTMLElement) {
+        this._stopPosTracking();
+        this._msgTrackedEl = el;
+        this._msgPosUpdater = () => { if (this._msgTrackedEl) this._updateOverlayPos(this._msgTrackedEl); };
+        document.addEventListener("scroll", this._msgPosUpdater, { passive: true, capture: true });
+        window.addEventListener("resize", this._msgPosUpdater, { passive: true });
+    },
+
+    _stopPosTracking() {
+        this._msgTrackedEl = null;
+        if (this._msgPosUpdater) {
+            document.removeEventListener("scroll", this._msgPosUpdater, { capture: true });
+            window.removeEventListener("resize", this._msgPosUpdater);
+            this._msgPosUpdater = null;
+        }
+    },
+
+    // This tracked-element-style scroll hide was unreliable:
+    // per-element opacity changes conflicted with body-class CSS,
+    // and refs could go stale on re-render. Replaced by wheel-based
+    // body-class approach in _setupGifGridScroll below.
+    /*
+    _startPosTracking(el: HTMLElement) {
+        this._stopPosTracking();
+        this._msgTrackedEl = el;
+        const rect = el.getBoundingClientRect();
+        let lastPos = `${rect.top},${rect.left},${rect.width},${rect.height}`;
+        this._msgPosUpdater = () => {
+            if (!this._msgTrackedEl) return;
+            const r = this._msgTrackedEl.getBoundingClientRect();
+            const pos = `${r.top},${r.left},${r.width},${r.height}`;
+            if (pos !== lastPos) {
+                lastPos = pos;
+                this._updateOverlayPos(this._msgTrackedEl);
+                if (this._msgElement) { this._msgElement.style.opacity = "0"; this._msgElement.style.pointerEvents = "none"; }
+                if (this._msgMoveTimer) clearTimeout(this._msgMoveTimer);
+                this._msgMoveTimer = setTimeout(() => {
+                    if (this._msgElement) { this._msgElement.style.opacity = ""; this._msgElement.style.pointerEvents = ""; }
+                    this._msgMoveTimer = null;
+                }, 400);
+            }
+        };
+        document.addEventListener("scroll", this._msgPosUpdater, { passive: true, capture: true });
+        window.addEventListener("resize", this._msgPosUpdater, { passive: true });
+    },
+
+    _stopPosTracking() {
+        this._msgTrackedEl = null;
+        if (this._msgMoveTimer) { clearTimeout(this._msgMoveTimer); this._msgMoveTimer = null; }
+        if (this._msgPosUpdater) {
+            document.removeEventListener("scroll", this._msgPosUpdater, { capture: true });
+            window.removeEventListener("resize", this._msgPosUpdater);
+            this._msgPosUpdater = null;
+        }
+    },
+    */
+
+    _showOverlay(el: HTMLElement, src: string) {
+        if (!this._msgElement) return;
+        this._updateOverlayPos(el);
+        this._startPosTracking(el);
         if (this._msgRoot) this._msgRoot.unmount();
         this._msgRoot = createRoot(this._msgElement);
         this._msgRoot.render(
@@ -814,6 +1049,7 @@ export default definePlugin({
     _msgHide() {
         if (this._msgCloseTimer) { clearTimeout(this._msgCloseTimer); this._msgCloseTimer = null; }
         this._currentGifEl = null;
+        this._stopPosTracking();
         this._msgRoot?.unmount();
         this._msgRoot = null;
     },
@@ -852,17 +1088,20 @@ export default definePlugin({
         },
     },
 
-    // ── GIF picker scroll-hide ─────────────────────────────────────────────
-    // Uses wheel event on document (capture phase) to toggle body class.
-    // body.vc-gifcat-scrolling is set immediately via CSS rule with !important,
-    // cleared after 400ms debounce.
-
+    _unsubCatsChanged: null as (() => void) | null,
     _gifGridScrollTimer: null as ReturnType<typeof setTimeout> | null,
     _gifGridScrollCleanup: null as (() => void) | null,
+    _lastTrackedPos: null as string | null,
 
     _setupGifGridScroll() {
         const SCROLLING_CLASS = "vc-gifcat-scrolling";
         const handler = () => {
+            if (this._msgTrackedEl) {
+                const rect = this._msgTrackedEl.getBoundingClientRect();
+                const pos = `${rect.top},${rect.left}`;
+                if (pos === this._lastTrackedPos) return;
+                this._lastTrackedPos = pos;
+            }
             document.body.classList.add(SCROLLING_CLASS);
             if (this._gifGridScrollTimer) clearTimeout(this._gifGridScrollTimer);
             this._gifGridScrollTimer = setTimeout(() => {
@@ -873,8 +1112,6 @@ export default definePlugin({
         document.addEventListener("wheel", handler, { capture: true, passive: true });
         this._gifGridScrollCleanup = () => document.removeEventListener("wheel", handler, { capture: true });
     },
-
-    _unsubCatsChanged: null as (() => void) | null,
 
     start() {
         this._msgElement = document.createElement("div");
